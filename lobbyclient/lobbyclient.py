@@ -7,7 +7,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import telnetlib
-#from time import sleep
 import threading
 import signal
 import logging
@@ -18,10 +17,13 @@ from models import Host, User
 logger = logging.getLogger()
 
 class Lobbyclient():
-    
+
     def __init__(self):
-        self.users = dict()
-        self.hosts = dict()
+        self.users = dict()              # all users
+        self.hosts = dict()              # all hosts
+        self.hosts_open = dict()         # hosts that are not ingame
+        self.hosts_ingame = dict()       # hosts that are ingame
+        self.login_info_consumed = False # prevent error msg from during initial data collection
 
     def _sig_handler(self, signum, frame):
         self.shutdown()
@@ -59,7 +61,7 @@ class Lobbyclient():
         starts separate thread to send PING every interval seconds to the server 
         """
         # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#PING:client
-        logger.info("_send_pings() START")
+        logger.info("Sending a PING to lobby server every %d seconds.", interval)
         while True:
             if ev.wait(interval):
                 # got signal
@@ -72,11 +74,11 @@ class Lobbyclient():
 
     def ping(self):    
         self.ev = threading.Event()
-        self.ping_thread = threading.Thread(target=self._send_pings, name="send_pings", kwargs={"interval": PING_INTERVAL, "tn_socket": self.tn.get_socket(), "ev": self.ev})
+        self.ping_thread = threading.Thread(target=self._send_pings, name="lobbyclient_ping", kwargs={"interval": PING_INTERVAL, "tn_socket": self.tn.get_socket(), "ev": self.ev})
         self.ping_thread.start()
 
     def _listen(self):
-        logger.info("_listen() START")
+        logger.info("Listening to lobby server.")
         more = ""
         while True:
             some = self.tn.read_some()
@@ -92,7 +94,7 @@ class Lobbyclient():
                     more += some
 
     def listen(self):
-        self.listen_thread = threading.Thread(target=self._listen, name="listen")
+        self.listen_thread = threading.Thread(target=self._listen, name="lobbyclient_main")
         self.listen_thread.start()
 
     def consume(self, commandstr):
@@ -100,6 +102,8 @@ class Lobbyclient():
         Read and act upon a line of lobby protocol.
         """
 #         logger.debug("commandstr: %s", repr(commandstr))
+#         logger.debug("len(hosts)=%d, len(hosts_open)=%d, len(hosts_ingame)=%d", len(self.hosts), len(self.hosts_open), len(self.hosts_ingame))
+
         if commandstr.startswith("ADDUSER"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#ADDUSER:server
             # ADDUSER userName country cpu [accountID]
@@ -126,6 +130,7 @@ class Lobbyclient():
             del loc["commandstr"]
             del loc["self"]
             self.hosts[battleID] = Host(loc)
+            self.hosts_open[battleID] = self.hosts[battleID]
             try:
                 self.hosts[battleID].user = self.users[founder]
                 self.users[founder].host = self.hosts[battleID]
@@ -137,8 +142,6 @@ class Lobbyclient():
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#MYSTATUS:client
             # CLIENTSTATUS userName status
             # status bits: is_bot|has_access|3*rank|is_away|is_ingame
-            # 88 = 1011000 = bot, not a moderator, rank=6, not away, not ingame
-            # 93 = 1011101 = bot, not a moderator, rank=7, not away, ingame
             try:
                 _, userName, status = commandstr.split()
             except ValueError, e:
@@ -156,13 +159,33 @@ class Lobbyclient():
                 rank              = int(status_bin[2:5], base=2)
                 user.is_moderator = bool(int(status_bin[1]))
                 user.is_bot       = bool(int(status_bin[0]))
-#                     logger.debug("status: '%s', status_bin: '%s'", status, status_bin)
-#                     logger.debug("locales: %s", locals())
             except Exception, e:
                 logger.exception("Exception in CLIENTSTATUS: commandstr: '%s', status: '%s', status_bin: '%s'", repr(commandstr), status, status_bin)
                 return
             if user.host:
+#                 logger.debug("user: %s is a host: %s", user.name, user.host.founder)
                 user.host.is_ingame = user.is_ingame
+                if user.is_ingame:
+#                     logger.debug("user %s is_ingame: %s, host %s is_ingame: %s", user.name, user.is_ingame, user.host.founder, user.host.is_ingame)
+                    # add host to hosts_ingame
+                    self.hosts_ingame[user.host.battleID] = user.host
+                    # remove host from hosts_open
+                    try:
+                        del self.hosts_open[user.host.battleID]
+                    except Exception, e:
+                        logger.exception("Exception in CLIENTSTATUS: commandstr: '%s', trying to remove host from hosts_open", repr(commandstr))
+                else:
+#                     logger.debug("user %s NOT is_ingame: %s, host %s NOT is_ingame: %s", user.name, user.is_ingame, user.host.founder, user.host.is_ingame)
+                    # remove host from hosts_ingame
+                    try:
+                        del self.hosts_ingame[user.host.battleID]
+                    except Exception, e:
+                        if self.login_info_consumed:
+                            logger.exception("Exception in CLIENTSTATUS: commandstr: '%s', trying to remove host from hosts_ingame", repr(commandstr))
+                        else:
+                            pass
+                    # add host to hosts_open
+                    self.hosts_open[user.host.battleID] = user.host
         elif commandstr.startswith("JOINEDBATTLE"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#JOINEDBATTLE:server
             # JOINEDBATTLE battleID userName [scriptPassword]
@@ -190,8 +213,16 @@ class Lobbyclient():
         elif commandstr.startswith("REMOVEUSER"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#REMOVEUSER:server
             # REMOVEUSER userName
+            userName = commandstr.split()[1]
+            user = self.users[userName]
+            if user.host:
+                try:
+                    del self.hosts[user.host.battleID]
+                    del self.hosts_open[user.host.battleID]
+                except:
+                    pass
             try:
-                del self.users[commandstr.split()[1]]
+                del self.users[userName]
             except ValueError, e:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
@@ -223,6 +254,7 @@ class Lobbyclient():
 
 
     def shutdown(self):
+        logger.info("Shutting lobbyclient down.")
         # stop ping thread
         self.ev.set()
         self.ping_thread.join(1)
@@ -233,8 +265,17 @@ class Lobbyclient():
         
         # say goodbye to lobby server
         logger.info("EXIT")
-        self.tn.write("EXIT\n")
-        remaining_data = self.tn.read_all()
-        self.tn.close()
-        logger.info("REMAINING DATA: tn.read_all():\n%s", remaining_data)
-        logger.info("tn.close()")
+        try:
+            self.tn.write("EXIT\n")
+            remaining_data = self.tn.read_all()
+            self.tn.close()
+            logger.info("REMAINING DATA: tn.read_all():\n%s", remaining_data)
+            logger.info("tn.close()")
+        except:
+            pass
+
+    def log_stats(self):
+        logger.info("users:        %03d", len(self.users))
+        logger.info("hosts:         %02d", len(self.hosts))
+        logger.info("hosts_open:    %02d", len(self.hosts_open))
+        logger.info("hosts_ingame:  %02d", len(self.hosts_ingame))

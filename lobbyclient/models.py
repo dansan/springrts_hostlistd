@@ -16,18 +16,18 @@ class Host(object):
     battleID      = 0
     type          = 0
     natType       = 0
-    founder       = ""
-    ip            = ""
+    founder       = u""
+    ip            = u""
     port          = 0
     maxPlayers    = 0
     passworded    = 0
     rank          = 0
     mapHash       = 0
-    engineName    = ""
-    engineVersion = ""
-    map           = ""
-    title         = ""
-    gameName      = ""
+    engineName    = u""
+    engineVersion = u""
+    map           = u""
+    title         = u""
+    gameName      = u""
     locked        = False
 
     spec_count   = 0
@@ -46,6 +46,19 @@ class Host(object):
 
     def set_player_count(self):
         self.player_count = len(self.user_list) - self.spec_count + 1 # +1 because host itself is in spec_count, but is not in user_list
+
+    def as_list_header(self):
+        return [u"battleID", u"founder", u"passworded", u"rank",
+                u"engineVersion", u"map", u"title", u"gameName", u"locked",
+                u"spec_count", u"player_count", u"is_ingame"]
+
+    def as_list(self):
+        return [unicode(self.battleID), unicode(self.founder),
+                unicode(self.passworded), unicode(self.rank),
+                unicode(self.engineVersion), unicode(self.map),
+                unicode(self.title), unicode(self.gameName),
+                unicode(self.locked), unicode(self.spec_count),
+                unicode(self.player_count), unicode(self.is_ingame)]
 
 class User(object):
     """
