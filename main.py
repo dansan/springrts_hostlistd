@@ -16,6 +16,7 @@ import threading
 
 from lobbyclient.lobbyclient import Lobbyclient
 from hostlistd.hostlistd import Hostlistd
+from settings import LOG_INTERVAL
 
 LOG_PATH        = realpath(dirname(__file__))+'/log'
 DEBUG_FORMAT = '%(asctime)s %(levelname)-8s %(module)s.%(funcName)s:%(lineno)d  %(message)s'
@@ -28,22 +29,6 @@ logging.basicConfig(level=logging.DEBUG,
                     filemode='a')
 logger = logging.getLogger()
 
-lc = Lobbyclient()
-login_info = lc.connect()
-lc.ping()
-try:
-    for li in login_info.split("\n"):
-        lc.consume(li)
-    lc.listen()
-except Exception, e:
-    logger.exception("Exception: %s", e)
-lc.login_info_consumed = True
-logger.info("login_info consumed")
-
-hl = Hostlistd()
-hl.set_host_lists(lc.hosts, lc.hosts_open, lc.hosts_ingame)
-hl.start()
-logger.info("hostlistd listening on %s:%d", hl.ip, hl.port)
 
 def log_stats(interval, ev):
     logger.info("Logging stats every %d seconds.", interval)
@@ -59,8 +44,39 @@ def log_stats(interval, ev):
             # this shouldn't happen
             return
 
+# launch lobby client
+lc = Lobbyclient()
+try:
+    login_info = lc.connect()
+except Exception, e:
+    logger.exception("Cannot connect to lobby server: %s", e)
+    exit(1)
+lc.ping()
+try:
+    for li in login_info.split("\n"):
+        lc.consume(li)
+    lc.login_info_consumed = True
+    logger.info("login_info consumed")
+    lc.listen()
+except SystemExit:
+    raise
+except Exception, e:
+    logger.exception("Exception: %s", e)
+
+# launch hostlist server
+try:
+    hl = Hostlistd()
+except Exception, e:
+    logger.exception("Cannot create Hostlistd server: %s", e)
+    lc.shutdown()
+    exit(1)
+hl.set_host_lists(lc.hosts, lc.hosts_open, lc.hosts_ingame)
+hl.start()
+logger.info("hostlistd listening on %s:%d", hl.ip, hl.port)
+
+# launch statistic logging thread
 ev = threading.Event()
-stats_thread = threading.Thread(target=log_stats, name="stats", kwargs={"interval": 3600, "ev": ev})
+stats_thread = threading.Thread(target=log_stats, name="stats", kwargs={"interval": LOG_INTERVAL, "ev": ev})
 stats_thread.start()
 
 # sleep until ctrl-c

@@ -17,6 +17,16 @@ from unicodewriter import UnicodeWriter
 
 logger = logging.getLogger()
 
+def substr_search(words, text):
+    """
+    Case-insensitive search for words in text.
+    Returns True if all words exist in text.
+    """
+    text = text.upper()
+    words_exist_in_text = map(lambda x: x.upper() in text, words)
+    return reduce(lambda x, y: x and y, words_exist_in_text, True)
+
+
 class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
     """
     Request handler, each connection gets an new object of this class.
@@ -27,11 +37,11 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
     name         = ""   # name of thread
 
     def setup(self):
+        logger.debug("Connetion from %s:%d", self.client_address[0], self.client_address[1])
         self.hosts = self.server.hosts
         self.hosts_open = self.server.hosts_open
         self.hosts_ingame = self.server.hosts_ingame
-        name = threading.current_thread().name
-        self.name = "hostlistd-request-" + " ".join(name.split("-")[1:])
+        self.name = "hostlistd-request-%s:%d" % self.client_address
         threading.current_thread().name = self.name
         super(ThreadedTCPRequestHandler, self).setup()
 
@@ -54,10 +64,14 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             3rd: 'END <length of list>'
         """
         for line in self.rfile:
-            # loop until disconnect
+            # loop until disconnect or server shutdown
+            if self.server.shutdown_now:
+                logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
+                return
+
             line = line.split()
             if len(line) < 2 or (len(line) == 2 and line[1] != "NONE"):
-                logger.error("Format error: '%s'", line)
+                logger.error("(%s:%d) Format error: '%s'", self.client_address[0], self.client_address[1], line)
                 continue
             # COMMAND
             if line[0] == "ALL":
@@ -67,18 +81,9 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             elif line[0] == "INGAME":
                 host_list = self.hosts_ingame.values()
             else:
-                logger.error("Unknown COMMAND '%s'.", line[0])
+                logger.error("(%s:%d) Unknown COMMAND '%s'.", self.client_address[0], self.client_address[1], line[0])
                 continue
             # FILTER-TYPE
-            def substr_search(words, text):
-                """
-                Case-insensitive search for words in text.
-                Returns True if all words exist in text.
-                """
-                text = text.upper()
-                words_exist_in_text = map(lambda x: x.upper() in text, words)
-                return reduce(lambda x, y: x and y, words_exist_in_text, True)
-
             if line[1] == "NONE":
                 host_list_filtered = host_list
             elif line[1] == "MOD":
@@ -86,7 +91,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             elif line[1] == "HOST":
                 host_list_filtered = [host for host in host_list if substr_search(line[2:], host.founder)]
             else:
-                logger.error("Unknown FILTER-TYPE '%s'.", line[0])
+                logger.error("(%s:%d) Unknown FILTER-TYPE '%s'.", self.client_address[0], self.client_address[1], line[0])
                 continue
 
             response = u"START %s\n" % datetime.datetime.utcnow().isoformat()
@@ -101,7 +106,11 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             self.wfile.write(response)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    pass
+
+    def handle_error(self, request, client_address):
+        logger.debug("Remote disconnect by %s:%d", client_address[0], client_address[1])
+        request.close()
+
 
 class Hostlistd(object):
     """
@@ -114,6 +123,7 @@ class Hostlistd(object):
 
     def __init__(self):
         self.server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
+        self.server.shutdown_now = False
         self.ip, self.port = self.server.server_address
 
     def set_host_lists(self, hosts, hosts_open, hosts_ingame):
@@ -129,6 +139,7 @@ class Hostlistd(object):
 
     def shutdown(self):
         logger.info("Shutting hostlistd server down.")
+        self.server.shutdown_now = True
         self.server.shutdown()
 
     def log_stats(self):
