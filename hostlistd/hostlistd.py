@@ -69,6 +69,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
                 return
 
+            logger.debug("(%s:%d) line: %s line.split(): %s", self.client_address[0], self.client_address[1], repr(line), repr(line.split()))
             line = line.split()
             if len(line) < 2 or (len(line) == 2 and line[1] != "NONE"):
                 logger.error("(%s:%d) Format error: '%s'", self.client_address[0], self.client_address[1], line)
