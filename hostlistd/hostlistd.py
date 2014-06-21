@@ -105,6 +105,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 csvfile.close()
             response += u"END %d\n" % len(host_list_filtered)
             self.wfile.write(response)
+            logger.debug("(%s:%d) len(host_list)=%d len(host_list_filtered)=%d response-lines=%d", self.client_address[0], self.client_address[1], len(host_list), len(host_list_filtered), len(response.split("\n")))
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
