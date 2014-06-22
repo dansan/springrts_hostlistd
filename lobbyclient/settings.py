@@ -20,7 +20,7 @@ CONNECT_DATA = {"username": "DanNew",
                 "version": "0.1",
                 "id": "0",
                 "compat_flags": "a cl"}
-PING_INTERVAL = 10
+PING_INTERVAL = 30
 
 # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#LOGIN:client
 # LOGIN userName password cpu localIP {lobby name and version} [userID] [{compFlags}]
