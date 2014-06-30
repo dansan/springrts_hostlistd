@@ -108,6 +108,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             logger.debug("(%s:%d) len(host_list)=%d len(host_list_filtered)=%d response-lines=%d", self.client_address[0], self.client_address[1], len(host_list), len(host_list_filtered), len(response.split("\n")))
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+    allow_reuse_address = True
 
     def handle_error(self, request, client_address):
         logger.debug("Remote disconnect by %s:%d", client_address[0], client_address[1])
@@ -127,6 +128,7 @@ class Hostlistd(object):
         self.server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
         self.server.shutdown_now = False
         self.ip, self.port = self.server.server_address
+        self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def set_host_lists(self, hosts, hosts_open, hosts_ingame):
         self.server.hosts = hosts
