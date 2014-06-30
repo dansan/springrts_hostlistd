@@ -88,7 +88,6 @@ class Lobbyclient():
                 if some.endswith("\n"):
                     for txt in (more+some[:-1]).split("\n"):
                         self.consume(txt)
-#                     self.consume(more+some[:-1])
                     more = ""
                 else:
                     more += some
@@ -100,19 +99,25 @@ class Lobbyclient():
     def consume(self, commandstr):
         """
         Read and act upon a line of lobby protocol.
-        """
-#         logger.debug("commandstr: %s", repr(commandstr))
-#         logger.debug("len(hosts)=%d, len(hosts_open)=%d, len(hosts_ingame)=%d", len(self.hosts), len(self.hosts_open), len(self.hosts_ingame))
 
+        Only the following commands are implemented:
+          ADDUSER
+          BATTLEOPENED
+          CLIENTSTATUS
+          JOINEDBATTLE
+          LEFTBATTLE
+          REMOVEUSER
+          UPDATEBATTLEINFO
+        """
         if commandstr.startswith("ADDUSER"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#ADDUSER:server
             # ADDUSER userName country cpu [accountID]
             try:
                 self.users[commandstr.split()[1]] = User(*commandstr.split()[1:])
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
-            except Exception, e:
+            except Exception:
                 logger.exception("Exception, commandstr: '%s'", repr(commandstr))
                 return
         elif commandstr.startswith("BATTLEOPENED"):
@@ -121,8 +126,11 @@ class Lobbyclient():
             try:
                 cmd, engineVersion, map, title, gameName = commandstr.split("\t")
                 _, battleID, type, natType, founder, ip, port, maxPlayers, passworded, rank, mapHash, engineName = cmd.split()
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
+                return
+            except Exception:
+                logger.exception("Commandstr: '%s'", repr(commandstr))
                 return
             loc = locals()
             del loc["_"]
@@ -134,7 +142,7 @@ class Lobbyclient():
             try:
                 self.hosts[battleID].user = self.users[founder]
                 self.users[founder].host = self.hosts[battleID]
-            except KeyError, e:
+            except KeyError:
                 logger.exception("founder of self.hosts[%d] not self.users[%s]", battleID, founder)
                 return
         elif commandstr.startswith("CLIENTSTATUS"):
@@ -144,12 +152,12 @@ class Lobbyclient():
             # status bits: is_bot|has_access|3*rank|is_away|is_ingame
             try:
                 _, userName, status = commandstr.split()
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
             try:
                 user = self.users[userName]
-            except Exception, e:
+            except:
                 logger.exception("Exception in CLIENTSTATUS: userName '%s' not in self.users?", userName)
                 return
             try:
@@ -159,39 +167,37 @@ class Lobbyclient():
                 rank              = int(status_bin[2:5], base=2)
                 user.is_moderator = bool(int(status_bin[1]))
                 user.is_bot       = bool(int(status_bin[0]))
-            except Exception, e:
-                logger.exception("Exception in CLIENTSTATUS: commandstr: '%s', status: '%s', status_bin: '%s'", repr(commandstr), status, status_bin)
+            except:
+                logger.exception("Exception in CLIENTSTATUS: status: '%s', status_bin: '%s', commandstr: '%s'", repr(commandstr), status, status_bin)
                 return
             if user.host:
-#                 logger.debug("user: %s is a host: %s", user.name, user.host.founder)
                 user.host.is_ingame = user.is_ingame
                 if user.is_ingame:
-#                     logger.debug("user %s is_ingame: %s, host %s is_ingame: %s", user.name, user.is_ingame, user.host.founder, user.host.is_ingame)
                     # add host to hosts_ingame
                     self.hosts_ingame[user.host.battleID] = user.host
                     # remove host from hosts_open
                     try:
                         del self.hosts_open[user.host.battleID]
-                    except Exception, e:
-                        logger.exception("Exception in CLIENTSTATUS: commandstr: '%s', trying to remove host from hosts_open", repr(commandstr))
+                    except:
+                        logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_open, commandstr: '%s'", repr(commandstr))
                 else:
-#                     logger.debug("user %s NOT is_ingame: %s, host %s NOT is_ingame: %s", user.name, user.is_ingame, user.host.founder, user.host.is_ingame)
+                    # add host to hosts_open
+                    self.hosts_open[user.host.battleID] = user.host
                     # remove host from hosts_ingame
                     try:
                         del self.hosts_ingame[user.host.battleID]
-                    except Exception, e:
+                    except Exception:
                         if self.login_info_consumed:
-                            logger.exception("Exception in CLIENTSTATUS: commandstr: '%s', trying to remove host from hosts_ingame", repr(commandstr))
+                            # msg flood in in wrong order during initial setup
+                            logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_ingame, commandstr: '%s'", repr(commandstr))
                         else:
                             pass
-                    # add host to hosts_open
-                    self.hosts_open[user.host.battleID] = user.host
         elif commandstr.startswith("JOINEDBATTLE"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#JOINEDBATTLE:server
             # JOINEDBATTLE battleID userName [scriptPassword]
             try:
                 _, battleID, userName = commandstr.split()
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
             self.hosts[battleID].user_list.append(self.users[userName])
@@ -201,7 +207,7 @@ class Lobbyclient():
             # LEFTBATTLE battleID userName
             try:
                 _, battleID, userName = commandstr.split()
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
             try:
@@ -223,10 +229,10 @@ class Lobbyclient():
                     pass
             try:
                 del self.users[userName]
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
-            except KeyError, e:
+            except KeyError:
                 logger.exception("Exception in REMOVEUSER: userName '%s' not in self.users?", userName)
                 return
         elif commandstr.startswith("UPDATEBATTLEINFO"):
@@ -235,12 +241,12 @@ class Lobbyclient():
             try:
                 battleID, spectatorCount, locked, mapHash = commandstr.split()[1:5]
                 mapName = " ".join(commandstr.split()[5:])
-            except ValueError, e:
+            except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
             try:
                 host = self.hosts[battleID]
-            except KeyError, e:
+            except KeyError:
                 logger.exception("Exception in UPDATEBATTLEINFO: battleID '%s' not in self.hosts?", battleID)
                 return
             host.spec_count = int(spectatorCount)

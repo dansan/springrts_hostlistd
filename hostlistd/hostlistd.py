@@ -7,6 +7,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import threading
+import socket
 import SocketServer
 import logging
 import csv, cStringIO
@@ -69,7 +70,6 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
                 return
 
-            logger.debug("(%s:%d) line: %s line.split(): %s", self.client_address[0], self.client_address[1], repr(line), repr(line.split()))
             line = line.split()
             if len(line) < 2 or (len(line) == 2 and line[1] != "NONE"):
                 logger.error("(%s:%d) Format error: '%s'", self.client_address[0], self.client_address[1], line)
@@ -105,7 +105,6 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 csvfile.close()
             response += u"END %d\n" % len(host_list_filtered)
             self.wfile.write(response)
-            logger.debug("(%s:%d) len(host_list)=%d len(host_list_filtered)=%d response-lines=%d", self.client_address[0], self.client_address[1], len(host_list), len(host_list_filtered), len(response.split("\n")))
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
