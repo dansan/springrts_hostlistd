@@ -124,8 +124,8 @@ class Lobbyclient():
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#BATTLEOPENED:server
             # BATTLEOPENED battleID type natType founder ip port maxPlayers passworded rank mapHash {engineName} {engineVersion} {map} {title} {gameName}
             try:
-                cmd, engineVersion, map, title, gameName = commandstr.split("\t")
-                _, battleID, type, natType, founder, ip, port, maxPlayers, passworded, rank, mapHash, engineName = cmd.split()
+                cmd, engineVersion, _map, title, gameName = commandstr.split("\t")
+                _, battleID, _type, natType, founder, ip, port, maxPlayers, passworded, rank, mapHash, engineName = cmd.split()
             except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
@@ -137,6 +137,10 @@ class Lobbyclient():
             del loc["cmd"]
             del loc["commandstr"]
             del loc["self"]
+            loc["map"] = _map
+            del loc["_map"]
+            loc["type"] = _type
+            del loc["_type"]
             self.hosts[battleID] = Host(loc)
             self.hosts_open[battleID] = self.hosts[battleID]
             try:
