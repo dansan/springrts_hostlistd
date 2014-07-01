@@ -57,6 +57,7 @@ try:
         lc.consume(li)
     lc.login_info_consumed = True
     logger.info("login_info consumed")
+    lc.log_stats()
     lc.listen()
 except SystemExit:
     raise

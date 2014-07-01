@@ -102,6 +102,7 @@ class Lobbyclient():
 
         Only the following commands are implemented:
           ADDUSER
+          BATTLECLOSED
           BATTLEOPENED
           CLIENTSTATUS
           JOINEDBATTLE
@@ -120,6 +121,25 @@ class Lobbyclient():
             except Exception:
                 logger.exception("Exception, commandstr: '%s'", repr(commandstr))
                 return
+        elif commandstr.startswith("BATTLECLOSED"):
+            # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#BATTLECLOSED:server
+            # BATTLECLOSED battleID
+            try:
+                battleID = commandstr.split()[1]
+            except Exception:
+                logger.exception("Commandstr: '%s'", repr(commandstr))
+                return
+            # founder is founder no more
+            try:
+                self.hosts[battleID].user.host = None
+            except:
+                logger.exception("error removing host-user-founder association")
+            # remove battle from all host lists
+            for hosts in [self.hosts, self.hosts_ingame, self.hosts_open]:
+                try:
+                    del hosts[battleID]
+                except:
+                    pass
         elif commandstr.startswith("BATTLEOPENED"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#BATTLEOPENED:server
             # BATTLEOPENED battleID type natType founder ip port maxPlayers passworded rank mapHash {engineName} {engineVersion} {map} {title} {gameName}
@@ -141,14 +161,11 @@ class Lobbyclient():
             del loc["_map"]
             loc["type"] = _type
             del loc["_type"]
-            self.hosts[battleID] = Host(loc)
-            self.hosts_open[battleID] = self.hosts[battleID]
-            try:
-                self.hosts[battleID].user = self.users[founder]
-                self.users[founder].host = self.hosts[battleID]
-            except KeyError:
-                logger.exception("founder of self.hosts[%d] not self.users[%s]", battleID, founder)
-                return
+            host = Host(loc)
+            self.hosts[battleID] = host
+            self.hosts_open[battleID] = host
+            host.user = self.users[founder]
+            host.user.host = host
         elif commandstr.startswith("CLIENTSTATUS"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#CLIENTSTATUS:server
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#MYSTATUS:client
@@ -159,16 +176,19 @@ class Lobbyclient():
             except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
+            except:
+                logger.exception("Commandstr: '%s'", repr(commandstr))
+                return
             try:
                 user = self.users[userName]
             except:
-                logger.exception("Exception in CLIENTSTATUS: userName '%s' not in self.users?", userName)
+                logger.exception("Exception in CLIENTSTATUS: userName '%s' in self.users?: %s, commandstr: '%s'", userName, userName in self.users, repr(commandstr))
                 return
             try:
                 status_bin = bin(int(status))[2:].zfill(7)
                 user.is_ingame    = bool(int(status_bin[6]))
                 user.is_away      = bool(int(status_bin[5]))
-                rank              = int(status_bin[2:5], base=2)
+                user.rank         = int(status_bin[2:5], base=2)
                 user.is_moderator = bool(int(status_bin[1]))
                 user.is_bot       = bool(int(status_bin[0]))
             except:
@@ -183,7 +203,9 @@ class Lobbyclient():
                     try:
                         del self.hosts_open[user.host.battleID]
                     except:
-                        logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_open, commandstr: '%s'", repr(commandstr))
+                        # CLIENTSTATUS is sent twice in case of self-hosted battles
+                        #logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_open, commandstr: '%s'", repr(commandstr))
+                        pass
                 else:
                     # add host to hosts_open
                     self.hosts_open[user.host.battleID] = user.host
@@ -192,9 +214,9 @@ class Lobbyclient():
                         del self.hosts_ingame[user.host.battleID]
                     except Exception:
                         if self.login_info_consumed:
-                            # msg flood in in wrong order during initial setup
                             logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_ingame, commandstr: '%s'", repr(commandstr))
                         else:
+                            # msg flood in in wrong order during initial setup
                             pass
         elif commandstr.startswith("JOINEDBATTLE"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#JOINEDBATTLE:server
