@@ -24,11 +24,14 @@ def substr_search(words, text):
     Returns True if all words exist in text.
     """
     text = text.upper()
-    if isinstance(words, list):
+    words = words.split()
+    if len(words) > 1:
         words_exist_in_text = map(lambda x: x.upper() in text, words)
         return reduce(lambda x, y: x and y, words_exist_in_text, True)
+    elif len(words) == 1:
+        return words[0].upper() in text
     else:
-        return words.upper() in text
+        return False
 
 
 class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
