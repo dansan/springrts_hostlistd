@@ -58,8 +58,10 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             COMMAND:     ALL|OPEN|INGAME
             FILTER-TYPE: NONE|MOD|HOST|DESC
             SUBSTRING:   The text to look for in the column FILTER-TYPE. If
-                         spaces are encountered, each word must be in the
-                         field.
+                         space[s] is encountered, each word must be in the
+                         field (AND). If '|' is encountered, word[s] before
+                         and after it will be searched for separately and
+                         all results will be returned (OR).
         Reply:
             1st line: 'START <ISO 8601 timestamp, UTC>'
             2nd: List of hosts as an UTF-8 encoded CSV using ; as separator and
@@ -91,9 +93,13 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             if line[1] == "NONE":
                 host_list_filtered = host_list
             elif line[1] == "MOD":
-                host_list_filtered = [host for host in host_list if substr_search(line[2:], host.gameName)]
+                host_list_filtered = list()
+                for words in " ".join(line[2:]).split("|"):
+                    host_list_filtered.extend([host for host in host_list if substr_search(words, host.gameName)])
             elif line[1] == "HOST":
-                host_list_filtered = [host for host in host_list if substr_search(line[2:], host.founder)]
+                host_list_filtered = list()
+                for words in " ".join(line[2:]).split("|"):
+                    host_list_filtered.extend([host for host in host_list if substr_search(words, host.founder)])
             else:
                 logger.error("(%s:%d) Unknown FILTER-TYPE '%s'.", self.client_address[0], self.client_address[1], line[0])
                 continue
