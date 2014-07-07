@@ -48,6 +48,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
         self.hosts = self.server.hosts
         self.hosts_open = self.server.hosts_open
         self.hosts_ingame = self.server.hosts_ingame
+        self.server.connention_count += 1
         self.name = "hostlistd-request-%s:%d" % self.client_address
         threading.current_thread().name = self.name
         super(ThreadedTCPRequestHandler, self).setup()
@@ -140,6 +141,7 @@ class Hostlistd(object):
         self.server.shutdown_now = False
         self.ip, self.port = self.server.server_address
         self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.connention_count = 0
 
     def set_host_lists(self, hosts, hosts_open, hosts_ingame):
         self.server.hosts = hosts
@@ -158,4 +160,4 @@ class Hostlistd(object):
         self.server.shutdown()
 
     def log_stats(self):
-        logger.info("Threads: %s", [t.name for t in threading.enumerate()])
+        logger.info("Connention count: %d, Threads: %s", self.server.connention_count, [t.name for t in threading.enumerate()])
