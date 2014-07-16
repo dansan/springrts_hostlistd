@@ -70,10 +70,17 @@ class Lobbyclient():
         self.ping_thread.start()
 
     def _listen(self):
-        logger.info("Listening to lobby server.")
         more = ""
         while True:
-            some = self.tn.read_some()
+            try:
+                some = self.tn.read_some()
+            except Exception:
+                logger.info("Connection closed")
+                tnsocket = self.tn.get_socket()
+                self.tn.close()
+                tnsocket.close()
+                logger.info("Quitting '%s' thread.", self.listen_thread.name)
+                return
             if some == "":
                 return
             else:
@@ -87,6 +94,7 @@ class Lobbyclient():
     def listen(self):
         self.listen_thread = threading.Thread(target=self._listen, name="lobbyclient_main")
         self.listen_thread.start()
+        logger.info("Started lobbyclient (in '%s' thread).", self.listen_thread.name)
 
     def consume(self, commandstr):
         """
