@@ -8,7 +8,6 @@
 
 import telnetlib
 import threading
-import signal
 import logging
 
 from settings import LOBBY_SERVER_FQDN, LOBBY_SERVER_PORT, LOGIN, PING_INTERVAL
@@ -24,9 +23,6 @@ class Lobbyclient():
         self.hosts_open = dict()         # hosts that are not ingame
         self.hosts_ingame = dict()       # hosts that are ingame
         self.login_info_consumed = False # prevent error msg from during initial data collection
-
-    def _sig_handler(self, signum, frame):
-        self.shutdown()
 
     def connect(self):
         self.tn = telnetlib.Telnet(LOBBY_SERVER_FQDN, LOBBY_SERVER_PORT)
@@ -47,10 +43,6 @@ class Lobbyclient():
             exit(1)
         else:
             logger.info("LOGIN ACCEPTED")
-
-        # abort on ctrl-c and kill
-        signal.signal(signal.SIGTERM, self._sig_handler)
-        signal.signal(signal.SIGINT, self._sig_handler)
 
         login_info = self.tn.read_until("LOGININFOEND\n", 2)
         logger.info("LOGININFOEND reached")

@@ -81,7 +81,10 @@ stats_thread = threading.Thread(target=log_stats, name="stats", kwargs={"interva
 stats_thread.start()
 
 # sleep until ctrl-c
-signal.pause()
+try:
+    signal.pause()
+except:
+    pass
 logger.info("Shutting down")
 
 # shutdown all threads
