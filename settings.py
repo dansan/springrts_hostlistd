@@ -8,3 +8,9 @@
 
 # how often to write statistics to log file (in seconds) 
 LOG_INTERVAL = 300
+
+# how often should we try to reconnect?
+LOBBY_CONNECT_TRIES = 360
+
+# how much time in seconds between reconnect tries
+LOBBY_CONNECT_RETRY_WAIT = 10

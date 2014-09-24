@@ -15,6 +15,9 @@ from models import Host, User
 
 logger = logging.getLogger()
 
+class LobbyTCPConnectException(Exception):
+    pass
+
 class Lobbyclient():
 
     def __init__(self):
@@ -25,7 +28,10 @@ class Lobbyclient():
         self.login_info_consumed = False # prevent error msg from during initial data collection
 
     def connect(self):
-        self.tn = telnetlib.Telnet(LOBBY_SERVER_FQDN, LOBBY_SERVER_PORT)
+        try:
+            self.tn = telnetlib.Telnet(LOBBY_SERVER_FQDN, LOBBY_SERVER_PORT)
+        except:
+            raise LobbyTCPConnectException
         logger.info("Connected to %s:%d", LOBBY_SERVER_FQDN, LOBBY_SERVER_PORT)
 
         # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#TASSERVER:server

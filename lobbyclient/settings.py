@@ -13,7 +13,7 @@ LOBBY_SERVER_FQDN = "lobby.springrts.com"
 LOBBY_SERVER_PORT = 8200
 
 CONNECT_DATA = {"username": "DanNew",
-                "password": "aZ2i7jmKL",
+                "password": "9xpvhXsXIK8v",
                 "cpu": "2400",
                 "ip": "*",
                 "software": "py-telnet",

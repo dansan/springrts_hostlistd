@@ -12,10 +12,11 @@ import logging
 from os.path import realpath, dirname
 import signal
 import threading
+from time import sleep
 
 from lobbyclient.lobbyclient import Lobbyclient
 from hostlistd.hostlistd import Hostlistd
-from settings import LOG_INTERVAL
+from settings import LOG_INTERVAL, LOBBY_CONNECT_TRIES, LOBBY_CONNECT_RETRY_WAIT
 
 LOG_PATH        = realpath(dirname(__file__))+'/log'
 DEBUG_FORMAT = '%(asctime)s %(levelname)-8s %(module)s.%(funcName)s:%(lineno)d  %(message)s'
@@ -29,11 +30,11 @@ logging.basicConfig(level=logging.DEBUG,
 logger = logging.getLogger()
 logger.info("========= main starting =========")
 
-lc = None
-hl = None
-ev = threading.Event()
-stats_thread = None
-watchdog_thread = None
+lc = None              # lobby client
+hl = None              # hosts list
+ev = threading.Event() # signaling object
+stats_thread = None    # statistics thread
+watchdog_thread = None # lobbyclient watchdog thread
 
 
 def log_stats(interval, ev):
@@ -77,14 +78,27 @@ def launch_lobbyclient_watchdog():
     logger.info("Started watchdog (in '%s' thread) observing '%s' thread.", watchdog_thread.name, lc.listen_thread.name)
 
 def launch_lobbyclient():
-    global lc
+    global lc, ev
 
-    lc = Lobbyclient()
-    try:
-        login_info = lc.connect()
-    except Exception, e:
-        logger.exception("Cannot connect to lobby server: %s", e)
+    retries = 1
+    while retries < LOBBY_CONNECT_TRIES:
+        try:
+            logger.info("Connecting to lobby server...")
+            lc = Lobbyclient()
+            login_info = lc.connect()
+            logger.info("... connected.")
+            break
+        except Exception:
+            logger.exception("Cannot connect to lobby server:")
+            logger.info("Will retry in %d seconds (this is the %d. try)...", LOBBY_CONNECT_RETRY_WAIT, retries)
+            sleep(LOBBY_CONNECT_RETRY_WAIT)
+            retries +=1
+    else:
+        logger.critical("Could not connect to lobby server, exiting.")
+        ev.set()        # signal other threads
+        signal.alarm(1) # signal main thread
         exit(1)
+
     lc.ping()
     try:
         for li in login_info.split("\n"):
@@ -92,11 +106,16 @@ def launch_lobbyclient():
         lc.login_info_consumed = True
         logger.info("login_info consumed")
         lc.log_stats()
+        if len(lc.users) == 0:
+            logger.critical("No users found -> error -> exiting.")
+            ev.set()        # signal other threads
+            signal.alarm(1) # signal main thread
+            exit(1)
         lc.listen()
     except SystemExit:
         raise
-    except Exception, e:
-        logger.exception("Exception: %s", e)
+    except Exception:
+        logger.exception("Exception:")
 
 def launch_hostlistd():
     global hl, lc
