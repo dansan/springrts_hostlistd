@@ -25,7 +25,7 @@ class Lobbyclient():
         self.hosts = dict()              # all hosts
         self.hosts_open = dict()         # hosts that are not ingame
         self.hosts_ingame = dict()       # hosts that are ingame
-        self.login_info_consumed = False # prevent error msg from during initial data collection
+        self.login_info_consumed = False # prevent error msg during initial data collection
 
     def connect(self):
         try:

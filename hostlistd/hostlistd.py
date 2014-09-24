@@ -48,7 +48,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
         self.hosts = self.server.hosts
         self.hosts_open = self.server.hosts_open
         self.hosts_ingame = self.server.hosts_ingame
-        self.server.connention_count += 1
+        self.server.connection_count += 1
         self.name = "hostlistd-request-%s:%d" % self.client_address
         threading.current_thread().name = self.name
         super(ThreadedTCPRequestHandler, self).setup()
@@ -79,6 +79,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
                 return
 
+            self.server.query_stats_add(line)
             line = line.split()
             if len(line) < 2 or (len(line) == 2 and line[1] != "NONE"):
                 logger.error("(%s:%d) Format error: '%s'", self.client_address[0], self.client_address[1], line)
@@ -126,6 +127,14 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         logger.debug("Remote disconnect by %s:%d", client_address[0], client_address[1])
         request.close()
 
+    def query_stats_add(self, query):
+        try:
+            self.query_stats[query.strip()] += 1
+        except:
+            if len(self.query_stats) > 1000:
+                logger.warning("Probably broken client or DOS attack, not logging more than 1000 different queries.")
+            else:
+                self.query_stats[query.strip()] = 1
 
 class Hostlistd(object):
     """
@@ -141,7 +150,8 @@ class Hostlistd(object):
         self.server.shutdown_now = False
         self.ip, self.port = self.server.server_address
         self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server.connention_count = 0
+        self.server.connection_count = 0
+        self.server.query_stats = dict() # query string statistics
 
     def set_host_lists(self, hosts, hosts_open, hosts_ingame):
         self.server.hosts = hosts
@@ -160,4 +170,4 @@ class Hostlistd(object):
         self.server.shutdown()
 
     def log_stats(self):
-        logger.info("Connention count: %d, Threads: %s", self.server.connention_count, [t.name for t in threading.enumerate()])
+        logger.info("Connention count: %d, Threads: %s, Queries: %s", self.server.connection_count, [t.name for t in threading.enumerate()], self.server.query_stats)
