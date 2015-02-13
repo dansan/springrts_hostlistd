@@ -6,7 +6,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# how often to write statistics to log file (in seconds) 
+# how often to write statistics to log file (in seconds)
 LOG_INTERVAL = 300
 
 # how often should we try to reconnect?

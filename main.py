@@ -18,30 +18,30 @@ from lobbyclient.lobbyclient import Lobbyclient
 from hostlistd.hostlistd import Hostlistd
 from settings import LOG_INTERVAL, LOBBY_CONNECT_TRIES, LOBBY_CONNECT_RETRY_WAIT
 
-LOG_PATH        = realpath(dirname(__file__))+'/log'
+LOG_PATH = realpath(dirname(__file__)) + '/log'
 DEBUG_FORMAT = '%(asctime)s %(levelname)-8s %(module)s.%(funcName)s:%(lineno)d  %(message)s'
 LOG_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 logging.basicConfig(level=logging.DEBUG,
                     format=DEBUG_FORMAT,
                     datefmt=LOG_DATETIME_FORMAT,
-                    filename=LOG_PATH+'/root_debug.log',
+                    filename=LOG_PATH + '/root_debug.log',
                     filemode='a')
 logger = logging.getLogger()
 logger.info("========= main starting =========")
 
-lc = None              # lobby client
-hl = None              # hosts list
-ev = threading.Event() # signaling object
-stats_thread = None    # statistics thread
-watchdog_thread = None # lobbyclient watchdog thread
+lc = None  # lobby client
+hl = None  # hosts list
+ev = threading.Event()  # signaling object
+stats_thread = None  # statistics thread
+watchdog_thread = None  # lobbyclient watchdog thread
 
 
 def log_stats(interval, ev):
     global hl, lc
 
     logger.info("Logging stats every %d seconds.", interval)
-        
+
     while True:
         if ev.wait(interval):
             # got signal
@@ -53,13 +53,15 @@ def log_stats(interval, ev):
             # this shouldn't happen
             return
 
+
 def _lobbyclient_watchdog():
     global lc, hl
 
     lc.listen_thread.join()
-    logger.info("'%s' thread terminated, '%s'.isAlive(): %s", lc.listen_thread.name, lc.listen_thread.name, lc.listen_thread.isAlive())
+    logger.info("'%s' thread terminated, '%s'.isAlive(): %s", lc.listen_thread.name, lc.listen_thread.name,
+                lc.listen_thread.isAlive())
     if ev.is_set():
-        # shutting down, don't start new threads 
+        # shutting down, don't start new threads
         return
     lc.shutdown()
     hl.log_stats()
@@ -70,12 +72,14 @@ def _lobbyclient_watchdog():
     hl.log_stats()
     logger.info("Current lobbyclient_watchdog exiting.")
 
+
 def launch_lobbyclient_watchdog():
     global lc, watchdog_thread
 
     watchdog_thread = threading.Thread(target=_lobbyclient_watchdog, name="lobbyclient_watchdog")
     watchdog_thread.start()
     logger.info("Started watchdog (in '%s' thread) observing '%s' thread.", watchdog_thread.name, lc.listen_thread.name)
+
 
 def launch_lobbyclient():
     global lc, ev
@@ -92,11 +96,11 @@ def launch_lobbyclient():
             logger.exception("Cannot connect to lobby server:")
             logger.info("Will retry in %d seconds (this is the %d. try)...", LOBBY_CONNECT_RETRY_WAIT, retries)
             sleep(LOBBY_CONNECT_RETRY_WAIT)
-            retries +=1
+            retries += 1
     else:
         logger.critical("Could not connect to lobby server, exiting.")
-        ev.set()        # signal other threads
-        signal.alarm(1) # signal main thread
+        ev.set()  # signal other threads
+        signal.alarm(1)  # signal main thread
         exit(1)
 
     lc.ping()
@@ -108,14 +112,15 @@ def launch_lobbyclient():
         lc.log_stats()
         if len(lc.users) == 0:
             logger.critical("No users found -> error -> exiting.")
-            ev.set()        # signal other threads
-            signal.alarm(1) # signal main thread
+            ev.set()  # signal other threads
+            signal.alarm(1)  # signal main thread
             exit(1)
         lc.listen()
     except SystemExit:
         raise
     except Exception:
         logger.exception("Exception:")
+
 
 def launch_hostlistd():
     global hl, lc
@@ -130,11 +135,13 @@ def launch_hostlistd():
     hl.start()
     logger.info("hostlistd listening on %s:%d", hl.ip, hl.port)
 
+
 def launch_log_stats():
     global ev, stats_thread
 
     stats_thread = threading.Thread(target=log_stats, name="stats", kwargs={"interval": LOG_INTERVAL, "ev": ev})
     stats_thread.start()
+
 
 launch_lobbyclient()
 launch_lobbyclient_watchdog()

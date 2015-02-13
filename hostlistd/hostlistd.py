@@ -10,13 +10,15 @@ import threading
 import socket
 import SocketServer
 import logging
-import csv, cStringIO
+import csv
+import cStringIO
 import datetime
 
 from settings import HOST, PORT
 from unicodewriter import UnicodeWriter
 
 logger = logging.getLogger()
+
 
 def substr_search(words, text):
     """
@@ -38,10 +40,10 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
     """
     Request handler, each connection gets an new object of this class.
     """
-    hosts        = None # dict of lobbyclient.model.Host
-    hosts_open   = None # dict of lobbyclient.model.Host
-    hosts_ingame = None # dict of lobbyclient.model.Host
-    name         = ""   # name of thread
+    hosts = None  # dict of lobbyclient.model.Host
+    hosts_open = None  # dict of lobbyclient.model.Host
+    hosts_ingame = None  # dict of lobbyclient.model.Host
+    name = ""  # name of thread
 
     def setup(self):
         logger.debug("Connetion from %s:%d", self.client_address[0], self.client_address[1])
@@ -106,7 +108,8 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 for words in " ".join(line[2:]).split("|"):
                     host_list_filtered.extend([host for host in host_list if substr_search(words, host.founder)])
             else:
-                logger.error("(%s:%d) Unknown FILTER-TYPE '%s'.", self.client_address[0], self.client_address[1], line[0])
+                logger.error("(%s:%d) Unknown FILTER-TYPE '%s'.", self.client_address[0], self.client_address[1],
+                             line[0])
                 continue
 
             response = u"START %s\n" % datetime.datetime.utcnow().isoformat()
@@ -119,6 +122,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 csvfile.close()
             response += u"END %d\n" % len(host_list_filtered)
             self.wfile.write(response)
+
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
@@ -136,14 +140,15 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             else:
                 self.query_stats[query.strip()] = 1
 
+
 class Hostlistd(object):
     """
     Serves the lists of available hosts on a socket, multi-threaded.
     """
-    server        = None # server object
-    server_thread = None # thread in which the servers main loop runs
-    ip            = ""
-    port          = 0
+    server = None  # server object
+    server_thread = None  # thread in which the servers main loop runs
+    ip = ""
+    port = 0
 
     def __init__(self):
         self.server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
@@ -151,7 +156,7 @@ class Hostlistd(object):
         self.ip, self.port = self.server.server_address
         self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.connection_count = 0
-        self.server.query_stats = dict() # query string statistics
+        self.server.query_stats = dict()  # query string statistics
 
     def set_host_lists(self, hosts, hosts_open, hosts_ingame):
         self.server.hosts = hosts
@@ -170,4 +175,5 @@ class Hostlistd(object):
         self.server.shutdown()
 
     def log_stats(self):
-        logger.info("Connention count: %d, Threads: %s, Queries: %s", self.server.connection_count, [t.name for t in threading.enumerate()], self.server.query_stats)
+        logger.info("Connention count: %d, Threads: %s, Queries: %s", self.server.connection_count,
+                    [t.name for t in threading.enumerate()], self.server.query_stats)

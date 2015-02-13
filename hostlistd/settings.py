@@ -7,7 +7,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # interface to bind server to. Can be an IP address, a hostname or FQDN,
-# use  "" to bind to all interfaces, use "127.0.0.1" for develepment 
+# use  "" to bind to all interfaces, use "127.0.0.1" for develepment
 HOST = "127.0.0.1"
 # port to bind to
 PORT = 8222

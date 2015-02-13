@@ -15,17 +15,18 @@ from models import Host, User
 
 logger = logging.getLogger()
 
+
 class LobbyTCPConnectException(Exception):
     pass
 
-class Lobbyclient():
 
+class Lobbyclient():
     def __init__(self):
-        self.users = dict()              # all users
-        self.hosts = dict()              # all hosts
-        self.hosts_open = dict()         # hosts that are not ingame
-        self.hosts_ingame = dict()       # hosts that are ingame
-        self.login_info_consumed = False # prevent error msg during initial data collection
+        self.users = dict()  # all users
+        self.hosts = dict()  # all hosts
+        self.hosts_open = dict()  # hosts that are not ingame
+        self.hosts_ingame = dict()  # hosts that are ingame
+        self.login_info_consumed = False  # prevent error msg during initial data collection
 
     def connect(self):
         try:
@@ -56,7 +57,7 @@ class Lobbyclient():
 
     def _send_pings(self, interval, tn_socket, ev):
         """
-        starts separate thread to send PING every interval seconds to the server 
+        starts separate thread to send PING every interval seconds to the server
         """
         # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#PING:client
         logger.info("Sending a PING to lobby server every %d seconds.", interval)
@@ -70,9 +71,11 @@ class Lobbyclient():
                 # socket was probably closed
                 return
 
-    def ping(self):    
+    def ping(self):
         self.ev = threading.Event()
-        self.ping_thread = threading.Thread(target=self._send_pings, name="lobbyclient_ping", kwargs={"interval": PING_INTERVAL, "tn_socket": self.tn.get_socket(), "ev": self.ev})
+        self.ping_thread = threading.Thread(target=self._send_pings, name="lobbyclient_ping",
+                                            kwargs={"interval": PING_INTERVAL, "tn_socket": self.tn.get_socket(),
+                                                    "ev": self.ev})
         self.ping_thread.start()
 
     def _listen(self):
@@ -91,7 +94,7 @@ class Lobbyclient():
                 return
             else:
                 if some.endswith("\n"):
-                    for txt in (more+some[:-1]).split("\n"):
+                    for txt in (more + some[:-1]).split("\n"):
                         self.consume(txt)
                     more = ""
                 else:
@@ -148,10 +151,12 @@ class Lobbyclient():
                     pass
         elif commandstr.startswith("BATTLEOPENED"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#BATTLEOPENED:server
-            # BATTLEOPENED battleID type natType founder ip port maxPlayers passworded rank mapHash {engineName} {engineVersion} {map} {title} {gameName}
+            # BATTLEOPENED battleID type natType founder ip port maxPlayers passworded rank mapHash {engineName} \
+            # {engineVersion} {map} {title} {gameName}
             try:
                 cmd, engineVersion, _map, title, gameName = commandstr.split("\t")
-                _, battleID, _type, natType, founder, ip, port, maxPlayers, passworded, rank, mapHash, engineName = cmd.split()
+                _, battleID, _type, natType, founder, ip, port, maxPlayers, passworded, rank, mapHash, engineName = \
+                    cmd.split()
             except ValueError:
                 logger.exception("Bad format, commandstr: '%s'", repr(commandstr))
                 return
@@ -188,17 +193,19 @@ class Lobbyclient():
             try:
                 user = self.users[userName]
             except:
-                logger.exception("Exception in CLIENTSTATUS: userName '%s' in self.users?: %s, commandstr: '%s'", userName, userName in self.users, repr(commandstr))
+                logger.exception("Exception in CLIENTSTATUS: userName '%s' in self.users?: %s, commandstr: '%s'",
+                                 userName, userName in self.users, repr(commandstr))
                 return
             try:
                 status_bin = bin(int(status))[2:].zfill(7)
-                user.is_ingame    = bool(int(status_bin[6]))
-                user.is_away      = bool(int(status_bin[5]))
-                user.rank         = int(status_bin[2:5], base=2)
+                user.is_ingame = bool(int(status_bin[6]))
+                user.is_away = bool(int(status_bin[5]))
+                user.rank = int(status_bin[2:5], base=2)
                 user.is_moderator = bool(int(status_bin[1]))
-                user.is_bot       = bool(int(status_bin[0]))
+                user.is_bot = bool(int(status_bin[0]))
             except:
-                logger.exception("Exception in CLIENTSTATUS: status: '%s', status_bin: '%s', commandstr: '%s'", repr(commandstr), status, status_bin)
+                logger.exception("Exception in CLIENTSTATUS: status: '%s', status_bin: '%s', commandstr: '%s'",
+                                 repr(commandstr), status, status_bin)
                 return
             if user.host:
                 user.host.is_ingame = user.is_ingame
@@ -210,7 +217,6 @@ class Lobbyclient():
                         del self.hosts_open[user.host.battleID]
                     except:
                         # CLIENTSTATUS is sent twice in case of self-hosted battles
-                        #logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_open, commandstr: '%s'", repr(commandstr))
                         pass
                 else:
                     # add host to hosts_open
@@ -220,7 +226,9 @@ class Lobbyclient():
                         del self.hosts_ingame[user.host.battleID]
                     except Exception:
                         if self.login_info_consumed:
-                            logger.exception("Exception in CLIENTSTATUS: trying to remove host from hosts_ingame, commandstr: '%s'", repr(commandstr))
+                            logger.exception(
+                                "Exception in CLIENTSTATUS: trying to remove host from hosts_ingame, commandstr: '%s'",
+                                repr(commandstr))
                         else:
                             # msg flood in in wrong order during initial setup
                             pass
@@ -246,7 +254,8 @@ class Lobbyclient():
                 self.hosts[battleID].user_list.remove(self.users[userName])
                 self.hosts[battleID].set_player_count()
             except:
-                logger.exception("Exception in LEFTBATTLE: userName '%s' not in self.hosts[%s].user_list?", userName, battleID)
+                logger.exception("Exception in LEFTBATTLE: userName '%s' not in self.hosts[%s].user_list?", userName,
+                                 battleID)
                 return
         elif commandstr.startswith("REMOVEUSER"):
             # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#REMOVEUSER:server
@@ -283,13 +292,12 @@ class Lobbyclient():
                 return
             host.spec_count = int(spectatorCount)
             self.hosts[battleID].set_player_count()
-            host.locked     = bool(locked)
-            host.mapHash    = mapHash
-            self.map        = mapName
+            host.locked = bool(locked)
+            host.mapHash = mapHash
+            self.map = mapName
         else:
             # ignore all other commands
             pass
-
 
     def shutdown(self):
         logger.info("Shutting lobbyclient down.")
@@ -300,7 +308,7 @@ class Lobbyclient():
             logger.error("ERROR: ping_thread is still alive")
         else:
             logger.info("ping_thread quitted")
-        
+
         # say goodbye to lobby server
         logger.info("EXIT")
         try:

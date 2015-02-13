@@ -25,5 +25,6 @@ PING_INTERVAL = 30
 # http://springrts.com/dl/LobbyProtocol/ProtocolDescription.html#LOGIN:client
 # LOGIN userName password cpu localIP {lobby name and version} [userID] [{compFlags}]
 # LOGIN Johnny Gnmk1g3mcY6OWzJuM4rlMw== 3200 * TASClient 0.30[TAB]0[TAB]a b
-LOGIN = "LOGIN "+ CONNECT_DATA["username"] +" "+ base64.b64encode(hashlib.md5(CONNECT_DATA["password"]).digest()) +" "+ CONNECT_DATA["cpu"] +" "+ CONNECT_DATA["ip"] +" "+ CONNECT_DATA["software"] +" "+ CONNECT_DATA["version"] +"\t"+ CONNECT_DATA["id"] +"\t"+ CONNECT_DATA["compat_flags"]
-
+LOGIN = "LOGIN " + CONNECT_DATA["username"] + " " + base64.b64encode(hashlib.md5(CONNECT_DATA["password"]).digest()) + \
+        " " + CONNECT_DATA["cpu"] + " " + CONNECT_DATA["ip"] + " " + CONNECT_DATA["software"] + " " + \
+        CONNECT_DATA["version"] + "\t" + CONNECT_DATA["id"] + "\t" + CONNECT_DATA["compat_flags"]

@@ -4,7 +4,10 @@
 #
 # License is probably https://docs.python.org/2/license.html.
 
-import csv, codecs, cStringIO
+import csv
+import codecs
+import cStringIO
+
 
 class UnicodeWriter():
     """
