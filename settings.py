@@ -6,6 +6,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
+
+# log level
+LOG_LEVEL = logging.INFO
+
 # how often to write statistics to log file (in seconds)
 LOG_INTERVAL = 300
 

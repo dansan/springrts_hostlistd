@@ -16,13 +16,13 @@ from time import sleep
 
 from lobbyclient.lobbyclient import Lobbyclient
 from hostlistd.hostlistd import Hostlistd
-from settings import LOG_INTERVAL, LOBBY_CONNECT_TRIES, LOBBY_CONNECT_RETRY_WAIT
+from settings import LOG_LEVEL, LOG_INTERVAL, LOBBY_CONNECT_TRIES, LOBBY_CONNECT_RETRY_WAIT
 
 LOG_PATH = realpath(dirname(__file__)) + '/log'
 DEBUG_FORMAT = '%(asctime)s %(levelname)-8s %(module)s.%(funcName)s:%(lineno)d  %(message)s'
 LOG_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=LOG_LEVEL,
                     format=DEBUG_FORMAT,
                     datefmt=LOG_DATETIME_FORMAT,
                     filename=LOG_PATH + '/root_debug.log',

@@ -75,61 +75,74 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                FILTER-TYPE != NONE.
             3rd: 'END <length of list>'
         """
-        for line in self.rfile:
-            # loop until disconnect or server shutdown
-            if self.server.shutdown_now:
-                logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
-                return
+        try:
+            for line in self.rfile:
+                # loop until disconnect or server shutdown
+                if self.server.shutdown_now:
+                    logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
+                    return
 
-            self.server.query_stats_add(line)
-            line = line.split()
-            if len(line) < 2 or (len(line) == 2 and line[1] != "NONE"):
-                logger.error("(%s:%d) Format error: '%s'", self.client_address[0], self.client_address[1], line)
-                continue
-            # COMMAND
-            if line[0] == "ALL":
-                host_list = self.hosts.values()
-            elif line[0] == "OPEN":
-                host_list = self.hosts_open.values()
-            elif line[0] == "INGAME":
-                host_list = self.hosts_ingame.values()
-            else:
-                logger.error("(%s:%d) Unknown COMMAND '%s'.", self.client_address[0], self.client_address[1], line[0])
-                continue
-            # FILTER-TYPE
-            if line[1] == "NONE":
-                host_list_filtered = host_list
-            elif line[1] == "MOD":
-                host_list_filtered = list()
-                for words in " ".join(line[2:]).split("|"):
-                    host_list_filtered.extend([host for host in host_list if substr_search(words, host.gameName)])
-            elif line[1] == "HOST":
-                host_list_filtered = list()
-                for words in " ".join(line[2:]).split("|"):
-                    host_list_filtered.extend([host for host in host_list if substr_search(words, host.founder)])
-            else:
-                logger.error("(%s:%d) Unknown FILTER-TYPE '%s'.", self.client_address[0], self.client_address[1],
-                             line[0])
-                continue
+                self.server.query_stats_add(line)
+                line = line.split()
+                if len(line) < 2 or (len(line) == 2 and line[1] != "NONE"):
+                    logger.error("(%s:%d) Format error: '%s'", self.client_address[0], self.client_address[1], line)
+                    continue
+                # COMMAND
+                if line[0] == "ALL":
+                    host_list = self.hosts.values()
+                elif line[0] == "OPEN":
+                    host_list = self.hosts_open.values()
+                elif line[0] == "INGAME":
+                    host_list = self.hosts_ingame.values()
+                else:
+                    logger.error("(%s:%d) Unknown COMMAND '%s'.", self.client_address[0], self.client_address[1], line[0])
+                    continue
+                # FILTER-TYPE
+                if line[1] == "NONE":
+                    host_list_filtered = host_list
+                elif line[1] == "MOD":
+                    host_list_filtered = list()
+                    for words in " ".join(line[2:]).split("|"):
+                        host_list_filtered.extend([host for host in host_list if substr_search(words, host.gameName)])
+                elif line[1] == "HOST":
+                    host_list_filtered = list()
+                    for words in " ".join(line[2:]).split("|"):
+                        host_list_filtered.extend([host for host in host_list if substr_search(words, host.founder)])
+                else:
+                    logger.error("(%s:%d) Unknown FILTER-TYPE '%s'.", self.client_address[0], self.client_address[1],
+                                 line[0])
+                    continue
 
-            response = u"START %s\n" % datetime.datetime.utcnow().isoformat()
-            if len(host_list_filtered) > 0:
-                csvfile = cStringIO.StringIO()
-                csvwriter = UnicodeWriter(csvfile, quoting=csv.QUOTE_ALL)
-                csvwriter.writerow(host_list_filtered[0].as_list_header())
-                csvwriter.writerows([host.as_list() for host in host_list_filtered])
-                response += csvfile.getvalue()
-                csvfile.close()
-            response += u"END %d\n" % len(host_list_filtered)
-            self.wfile.write(response)
+                response = u"START %s\n" % datetime.datetime.utcnow().isoformat()
+                if len(host_list_filtered) > 0:
+                    csvfile = cStringIO.StringIO()
+                    csvwriter = UnicodeWriter(csvfile, quoting=csv.QUOTE_ALL)
+                    csvwriter.writerow(host_list_filtered[0].as_list_header())
+                    csvwriter.writerows([host.as_list() for host in host_list_filtered])
+                    response += csvfile.getvalue()
+                    csvfile.close()
+                response += u"END %d\n" % len(host_list_filtered)
+                self.wfile.write(response)
+        except socket.error, so:
+            # client disconnected. that's OK, thread will terminate now
+            logger.debug("(%s:%d) client disconnected", self.client_address[0], self.client_address[1])
+        except Exception, e:
+            # unexpected error
+            cur_thread = threading.current_thread()
+            logger.exception("(%s:%d) Unexpected error in thread '%s': %s", self.client_address[0],
+                             self.client_address[1], cur_thread.name, e)
+            raise e
 
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
 
     def handle_error(self, request, client_address):
-        logger.debug("Remote disconnect by %s:%d", client_address[0], client_address[1])
+        cur_thread = threading.current_thread()
+        logger.error("(%s) Error on connection from %s:%d, exiting!", cur_thread.name, client_address[0],
+                     client_address[1])
         request.close()
+        exit(1)
 
     def query_stats_add(self, query):
         try:
@@ -175,5 +188,5 @@ class Hostlistd(object):
         self.server.shutdown()
 
     def log_stats(self):
-        logger.info("Connention count: %d, Threads: %s, Queries: %s", self.server.connection_count,
-                    [t.name for t in threading.enumerate()], self.server.query_stats)
+        logger.info("Connention count: %d, Queries: %s, Threads (%d): %s", self.server.connection_count,
+                    self.server.query_stats, len(threading.enumerate()), [t.name for t in threading.enumerate()])
