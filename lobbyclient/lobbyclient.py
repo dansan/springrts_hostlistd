@@ -172,6 +172,8 @@ class Lobbyclient():
             del loc["_map"]
             loc["type"] = _type
             del loc["_type"]
+            for k,v in loc.items():
+                loc[k] = unicode(v, errors='ignore')
             host = Host(loc)
             self.hosts[battleID] = host
             self.hosts_open[battleID] = host

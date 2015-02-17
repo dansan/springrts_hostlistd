@@ -55,10 +55,10 @@ class Host(object):
                 u"spec_count", u"player_count", u"is_ingame"]
 
     def as_list(self):
-        return [unicode(self.battleID), unicode(self.founder),
+        return [unicode(self.battleID), self.founder,
                 unicode(self.passworded), unicode(self.rank),
-                unicode(self.engineVersion), unicode(self.map),
-                unicode(self.title), unicode(self.gameName),
+                self.engineVersion, self.map,
+                self.title, self.gameName,
                 unicode(self.locked), unicode(self.spec_count),
                 unicode(self.player_count), unicode(self.is_ingame)]
 
