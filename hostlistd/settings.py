@@ -8,6 +8,12 @@
 
 # interface to bind server to. Can be an IP address, a hostname or FQDN,
 # use  "" to bind to all interfaces, use "127.0.0.1" for develepment
+
+# IP to bind to
 HOST = "127.0.0.1"
+
 # port to bind to
 PORT = 8222
+
+# after this many seconds a socket will be closed no matter what
+MAX_CONNECTION_LENGTH = 2 * 3600

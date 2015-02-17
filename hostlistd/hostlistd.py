@@ -14,7 +14,7 @@ import csv
 import cStringIO
 import datetime
 
-from settings import HOST, PORT
+from settings import HOST, PORT, MAX_CONNECTION_LENGTH
 from unicodewriter import UnicodeWriter
 
 logger = logging.getLogger()
@@ -53,6 +53,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
         self.server.connection_count += 1
         self.name = "hostlistd-request-%s:%d" % self.client_address
         threading.current_thread().name = self.name
+        self.start_time = datetime.datetime.now()
         super(ThreadedTCPRequestHandler, self).setup()
 
     def handle(self):
@@ -79,8 +80,18 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             for line in self.rfile:
                 # loop until disconnect or server shutdown
                 if self.server.shutdown_now:
-                    logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0], self.client_address[1])
+                    logger.info("(%s:%d) server shut down already, bye bye", self.client_address[0],
+                                self.client_address[1])
+                    self.finish()
                     return
+                # remote sockets are not always closed, kill myself after MAX_CONNECTION_LENGTH seconds
+                if datetime.datetime.now() - self.start_time > datetime.timedelta(seconds=MAX_CONNECTION_LENGTH):
+                    cur_thread = threading.current_thread()
+                    logger.info("(%s:%d) Running since %s (>%d sec) in thread %s, killing myself.",
+                                self.client_address[0], self.client_address[1],
+                                self.start_time.strftime("%Y-%m-%d %H:%M:%S"), MAX_CONNECTION_LENGTH, cur_thread.name)
+                    self.finish()
+                    exit(2)
 
                 self.server.query_stats_add(line)
                 line = line.split()
@@ -126,11 +137,13 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
         except socket.error, so:
             # client disconnected. that's OK, thread will terminate now
             logger.debug("(%s:%d) client disconnected", self.client_address[0], self.client_address[1])
+            self.finish()
         except Exception, e:
             # unexpected error
             cur_thread = threading.current_thread()
             logger.exception("(%s:%d) Unexpected error in thread '%s': %s", self.client_address[0],
                              self.client_address[1], cur_thread.name, e)
+            self.finish()
             raise e
 
 
