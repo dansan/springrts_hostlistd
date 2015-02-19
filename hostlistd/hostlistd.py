@@ -52,8 +52,9 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
         self.hosts_ingame = self.server.hosts_ingame
         self.server.connection_count += 1
         self.name = "hostlistd-request-%s:%d" % self.client_address
-        threading.current_thread().name = self.name
-        self.start_time = datetime.datetime.now()
+        self.thread = threading.current_thread()
+        self.thread.name = self.name
+        self.thread.start_time = datetime.datetime.now()
         super(ThreadedTCPRequestHandler, self).setup()
 
     def handle(self):
@@ -85,11 +86,10 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                     self.finish()
                     return
                 # remote sockets are not always closed, kill myself after MAX_CONNECTION_LENGTH seconds
-                if datetime.datetime.now() - self.start_time > datetime.timedelta(seconds=MAX_CONNECTION_LENGTH):
-                    cur_thread = threading.current_thread()
+                if datetime.datetime.now() - self.thread.start_time > datetime.timedelta(seconds=MAX_CONNECTION_LENGTH):
                     logger.info("(%s:%d) Running since %s (>%d sec) in thread %s, killing myself.",
                                 self.client_address[0], self.client_address[1],
-                                self.start_time.strftime("%Y-%m-%d %H:%M:%S"), MAX_CONNECTION_LENGTH, cur_thread.name)
+                                self.thread.start_time.strftime("%Y-%m-%d %H:%M:%S"), MAX_CONNECTION_LENGTH, self.thread.name)
                     self.finish()
                     return
 
@@ -141,9 +141,8 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             return
         except Exception, e:
             # unexpected error
-            cur_thread = threading.current_thread()
             logger.exception("(%s:%d) Unexpected error in thread '%s': %s", self.client_address[0],
-                             self.client_address[1], cur_thread.name, e)
+                             self.client_address[1], self.thread.name, e)
             self.finish()
             raise e
 
@@ -152,8 +151,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
 
     def handle_error(self, request, client_address):
-        cur_thread = threading.current_thread()
-        logger.error("(%s) Error on connection from %s:%d, exiting!", cur_thread.name, client_address[0],
+        logger.error("(%s) Error on connection from %s:%d, exiting!", self.thread.name, client_address[0],
                      client_address[1])
         request.close()
         exit(1)
@@ -210,5 +208,8 @@ class Hostlistd(object):
         self.server.shutdown()
 
     def log_stats(self):
-        logger.info("Connention count: %d, Queries: %s, Threads (%d): %s", self.server.connection_count,
-                    self.server.query_stats, len(threading.enumerate()), [t.name for t in threading.enumerate()])
+        now = datetime.datetime.now()
+        logger.info("Connection count: %d, Queries: %s", self.server.connection_count, self.server.query_stats)
+        logger.info("Threads (%d): %s", len(threading.enumerate()),
+                    ["%s (%0.1f min)" % (t.name, (now - t.start_time).seconds/60.0) if hasattr(t, "start_time") else
+                     t.name for t in threading.enumerate()])
