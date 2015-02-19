@@ -89,7 +89,8 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 if datetime.datetime.now() - self.thread.start_time > datetime.timedelta(seconds=MAX_CONNECTION_LENGTH):
                     logger.info("(%s:%d) Running since %s (>%d sec) in thread %s, killing myself.",
                                 self.client_address[0], self.client_address[1],
-                                self.thread.start_time.strftime("%Y-%m-%d %H:%M:%S"), MAX_CONNECTION_LENGTH, self.thread.name)
+                                self.thread.start_time.strftime("%Y-%m-%d %H:%M:%S"), MAX_CONNECTION_LENGTH,
+                                self.thread.name)
                     self.finish()
                     return
 
@@ -136,7 +137,8 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                 self.wfile.write(response)
         except socket.error, so:
             # client disconnected. that's OK, thread will terminate now
-            logger.debug("(%s:%d) client disconnected", self.client_address[0], self.client_address[1])
+            logger.debug("(%s:%d) client disconnected after %0.1f min", self.client_address[0], self.client_address[1],
+                (datetime.datetime.now() - self.thread.start_time).seconds/60.0)
             self.finish()
             return
         except Exception, e:
@@ -157,13 +159,15 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         exit(1)
 
     def query_stats_add(self, query):
-        try:
-            self.query_stats[query.strip()] += 1
-        except:
-            if len(self.query_stats) > 1000:
+        if len(self.query_stats) > 1000:
                 logger.warning("Probably broken client or DOS attack, not logging more than 1000 different queries.")
-            else:
+        else:
+            try:
+                self.query_stats[query.strip()] += 1
+            except KeyError:
                 self.query_stats[query.strip()] = 1
+            except:
+                logger.exception("This shouldn't happen.")
 
 
 class Hostlistd(object):
