@@ -91,7 +91,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
                                 self.client_address[0], self.client_address[1],
                                 self.start_time.strftime("%Y-%m-%d %H:%M:%S"), MAX_CONNECTION_LENGTH, cur_thread.name)
                     self.finish()
-                    exit(2)
+                    return
 
                 self.server.query_stats_add(line)
                 line = line.split()
@@ -138,6 +138,7 @@ class ThreadedTCPRequestHandler(SocketServer.StreamRequestHandler, object):
             # client disconnected. that's OK, thread will terminate now
             logger.debug("(%s:%d) client disconnected", self.client_address[0], self.client_address[1])
             self.finish()
+            return
         except Exception, e:
             # unexpected error
             cur_thread = threading.current_thread()
@@ -181,6 +182,14 @@ class Hostlistd(object):
         self.server.shutdown_now = False
         self.ip, self.port = self.server.server_address
         self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # activate TCP keepalive
+        self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # start keepalive check after 30 sec of idleness
+        self.server.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+        # send every 30 sec a keepaline packet
+        self.server.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+        # closes the socket after 5 missing ACKs
+        self.server.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5)
         self.server.connection_count = 0
         self.server.query_stats = dict()  # query string statistics
 
